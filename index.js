@@ -81,10 +81,9 @@ function switchMap() {
     }
 
     if (mapImg === mapKadImg) {
-        mapSwitchBtn.innerText = 'Show our map'
+        mapSwitchBtn.innerText = 'Показать нашу карту'
     } else {
-        mapSwitchBtn.innerText = 'Show kadastr map'
-    }
+        mapSwitchBtn.innerText = 'Показать кадастровую карту' }
 }
 
 var mapSwitchBtn = document.createElement('button')
@@ -102,17 +101,17 @@ function toggleDept(toState) {
     depts.visible = toState
 
     if (depts.visible) {
-        deptBtn.innerText = 'Hide dept'
+        deptBtn.innerText = 'Скрыть долги'
     } else {
-        deptBtn.innerText = 'Show dept'
+        deptBtn.innerText = 'Показать долги'
     }
 }
 
 var deptBtn = document.createElement('button')
-deptBtn.innerText = 'Show dept'
 deptBtn.onclick = () => toggleDept()
 deptBtn.style.cssText = 'position: absolute; top: 40px; right: 10px;'
 document.body.appendChild(deptBtn)
+toggleDept(false)
 
 var fileDiv = document.createElement('div')
 fileDiv.style.cssText =
@@ -124,54 +123,115 @@ fileDiv.appendChild(deptFileName)
 
 var deptFile = document.createElement('input')
 deptFile.type = 'file'
-deptFile.accept = '.csv'
 deptFile.style.cssText = 'width: 115px;'
 fileDiv.appendChild(deptFile)
+
+var deptInfo = document.createElement('div')
+deptInfo.style.cssText =
+    'position: absolute; top: 100px; right: 10px; display: flex; flex-direction: column; gap: 4px; align-items: center; color: #fff'
+document.body.appendChild(deptInfo)
+
+var segmentInfo = document.createElement('div')
+segmentInfo.style.cssText =
+    'position: absolute; top: -999px; left: -999px; display: flex; flex-direction: column; gap: 4px; color: #fff; background: black; border: 2px solid gray; border-radius: 4px; pointer-events: none; padding: 8px;'
+document.body.appendChild(segmentInfo)
 
 deptFile.onchange = () => {
     const file = deptFile.files[0]
     deptFileName.innerText = file.name
 
-    var reader = new FileReader()
-    reader.readAsText(file, 'UTF-8')
-    reader.onload = function (evt) {
-        console.log('contents loaded', evt.target.result)
+    file.arrayBuffer().then((ab) => {
+        const wb = window.XLSX.read(ab)
 
-        depts.data.map = {}
+        let totalDept = 0
+
+        const fileDepts = {}
+
+        wb.SheetNames.forEach((n) => {
+            const ws = wb.Sheets[n]
+            const rowSeparator = '__r_s__'
+            const fieldSeparator = '__f_s__'
+            const csv = XLSX.utils.sheet_to_csv(ws, {
+                RS: rowSeparator,
+                FS: fieldSeparator,
+            })
+            if (csv.indexOf('СНТ ""СОТВОРЕНИЕ""') === -1) {
+                return
+            }
+
+            let segment
+            let canParse = false
+            const rows = csv.split(rowSeparator)
+            rows.forEach((row) => {
+                if (!canParse) {
+                    canParse = row.startsWith(
+                        `Участок${fieldSeparator}Улица${fieldSeparator}Собств`
+                    )
+                    return
+                }
+
+                const cols = row.split(fieldSeparator)
+                if (cols.length !== 9) {
+                    console.error('csv', csv)
+
+                    console.error('row', row)
+                    console.error('cols', cols)
+
+                    throw new Error(
+                        'File format changed, we expected 9 columns'
+                    )
+                }
+                if (cols[0]) {
+                    if (!segment) {
+                        const label = cols.at(3)
+                        const neededToPay = parseFloat(cols.at(5))
+                        const dept = parseFloat(cols.at(6))
+
+                        segment = {
+                            code: cols[0],
+                            totalPayed: 0,
+                            totalDept: 0,
+                            costs: [
+                                {
+                                    label: label,
+                                    value: neededToPay,
+                                    dept: dept,
+                                },
+                            ],
+                        }
+                    } else if (cols[0] === 'Итого') {
+                        if (!segment) {
+                            console.error('Parser is broken')
+                        } else {
+                            const neededToPay = parseFloat(cols.at(5))
+                            const dept = parseFloat(cols.at(6))
+                            segment.totalPayed = neededToPay - dept
+                            segment.totalDept = dept
+
+                            totalDept += segment.totalDept
+
+                            fileDepts[segment.code] = segment
+                            segment = undefined
+                        }
+                    }
+                } else if (segment) {
+                    const label = cols.at(3)
+                    const neededToPay = parseFloat(cols.at(5))
+                    const dept = parseFloat(cols.at(6))
+
+                    segment.costs.push({
+                        label: label,
+                        value: neededToPay,
+                        dept: dept,
+                    })
+                }
+            })
+        })
+        depts.data.map = fileDepts
         toggleDept(true)
 
-        const contents = evt.target.result
-        const rows = contents.split('\n')
-        rows.forEach((row) => {
-            const cols = row.split(',')
-            const code = cols[0]
-            const deptVal = parseFloat(cols[1])
-            if (Number.isNaN(deptVal)) {
-                console.warn(
-                    'failed to parse that row, dept is not a number?',
-                    row
-                )
-                return
-            }
-
-            const hasSegment = !!segments.map[code]
-            if (!hasSegment) {
-                console.warn(
-                    'failed to parse that row, no segment with that code on the map',
-                    row
-                )
-                return
-            }
-
-            depts.data.map[code] = {
-                dept: deptVal,
-            }
-        })
-    }
-    reader.onerror = function (evt) {
-        console.error('failed to read the file', evt)
-        alert('Failed to read the file')
-    }
+        deptInfo.innerText = `Total dept: ${totalDept}`
+    })
 }
 
 window.addEventListener('keydown', (ev) => {
@@ -236,6 +296,8 @@ function animate() {
     ctx.font = 'bold 12px Arial'
     ctx.clearRect(0, 0, canvas.width, canvas.height)
 
+    let hoveredSegment
+
     if (mapImg.loaded) {
         ctx.drawImage(
             mapImg.img,
@@ -257,17 +319,15 @@ function animate() {
             } else if (depts.visible) {
                 doFill = true
                 let dept = depts.data.map[segment.code]
-                let value = dept ? dept.dept : undefined
+                let value = dept ? dept.totalDept : undefined
                 if (value === undefined) {
-                    ctx.fillStyle = 'gray'
+                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'
+                } else if (value > 10000) {
+                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'
                 } else if (value > 5000) {
-                    ctx.fillStyle = 'red'
-                } else if (value > 2000) {
-                    ctx.fillStyle = 'orange'
-                } else if (value > 100) {
-                    ctx.fillStyle = 'yellow'
-                } else {
-                    ctx.fillStyle = 'green'
+                    ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'
+                } else if (value > 1000) {
+                    ctx.fillStyle = 'rgba(255, 240, 0, 0.5)'
                 }
             }
 
@@ -292,6 +352,28 @@ function animate() {
             ctx.stroke()
             if (doFill) {
                 ctx.fill()
+            }
+
+            if (depts.visible && mouseP && pointIsInPoly(mouseP, segment.points)) {
+                if (!hoveredSegment) {
+                    hoveredSegment = segment
+
+                    ctx.beginPath()
+                    ctx.lineWidth = 2
+                    ctx.strokeStyle = '#f2ff00'
+                    ctx.fillStyle = 'rgba(0, 0, 255, 0.5)'
+
+                    hoveredSegment.points.forEach((p, idx) => {
+                        if (idx === 0) {
+                            ctx.moveTo(p.x, p.y)
+                        } else {
+                            ctx.lineTo(p.x, p.y)
+                        }
+                    })
+                    ctx.closePath()
+                    ctx.stroke()
+                    ctx.fill()
+                }
             }
 
             let offset = segments.opts[segment.code] || {
@@ -343,7 +425,81 @@ function animate() {
         ctx.fillRect(0, 0, canvas.width, canvas.height)
     }
 
+    if (hoveredSegment && depts.visible) {
+        if (segmentInfo._segmentCode !== hoveredSegment.code) {
+            let dept = depts.data.map[hoveredSegment.code]
+            segmentInfo.innerHTML = `
+<span>
+	Участок: ${hoveredSegment.code}
+</span>
+<div>
+	Начисления:
+	<div>${
+        dept
+            ? dept.costs
+                  .map((c) => `${c.label}: ${c.value}`)
+                  .join('</div><div>')
+            : 'отсутствуют'
+    }
+    </div>
+</div>
+<span>
+	Начислено всего: ${dept ? dept.totalDept + dept.totalPayed : '0'}
+</span>
+<span>
+	Оплачено всего: ${dept ? dept.totalPayed : '0'}
+</span>
+<span>
+	Долг: ${dept ? dept.totalDept : '0'}
+</span>
+`
+        }
+        segmentInfo.style.left = `${mouseP.x}px`
+        segmentInfo.style.top = `${mouseP.y}px`
+    } else {
+        segmentInfo.style.left = `-999px`
+        segmentInfo.style.top = `-999px`
+        segmentInfo._segmentCode = undefined
+        segmentInfo.innerHTML = ''
+    }
+
     requestAnimationFrame(animate)
 }
 
 requestAnimationFrame(animate)
+
+// NOTE: taken from here https://stackoverflow.com/questions/217578/how-can-i-determine-whether-a-2d-point-is-within-a-polygon/17490923#17490923
+function pointIsInPoly(p, polygon) {
+    var isInside = false
+    var minX = polygon[0].x
+    var maxX = polygon[0].x
+    var minY = polygon[0].y
+    var maxY = polygon[0].y
+    for (var n = 1; n < polygon.length; n++) {
+        var q = polygon[n]
+        minX = Math.min(q.x, minX)
+        maxX = Math.max(q.x, maxX)
+        minY = Math.min(q.y, minY)
+        maxY = Math.max(q.y, maxY)
+    }
+
+    if (p.x < minX || p.x > maxX || p.y < minY || p.y > maxY) {
+        return false
+    }
+
+    var i = 0
+    var j = polygon.length - 1
+    for (i, j; i < polygon.length; j = i++) {
+        if (
+            polygon[i].y > p.y != polygon[j].y > p.y &&
+            p.x <
+                ((polygon[j].x - polygon[i].x) * (p.y - polygon[i].y)) /
+                    (polygon[j].y - polygon[i].y) +
+                    polygon[i].x
+        ) {
+            isInside = !isInside
+        }
+    }
+
+    return isInside
+}
