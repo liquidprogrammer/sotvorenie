@@ -3,6 +3,7 @@ var depts = {
     visible: false,
     data: {
         map: {},
+        totalDept: -1,
     },
 }
 
@@ -83,7 +84,8 @@ function switchMap() {
     if (mapImg === mapKadImg) {
         mapSwitchBtn.innerText = 'Показать нашу карту'
     } else {
-        mapSwitchBtn.innerText = 'Показать кадастровую карту' }
+        mapSwitchBtn.innerText = 'Показать кадастровую карту'
+    }
 }
 
 var mapSwitchBtn = document.createElement('button')
@@ -188,6 +190,7 @@ deptFile.onchange = () => {
                         const dept = parseFloat(cols.at(6))
 
                         segment = {
+                            isUnknownOwner: cols.at(2) === '- -',
                             code: cols[0],
                             totalPayed: 0,
                             totalDept: 0,
@@ -228,6 +231,7 @@ deptFile.onchange = () => {
             })
         })
         depts.data.map = fileDepts
+        depts.data.totalDept = totalDept
         toggleDept(true)
 
         deptInfo.innerText = `Total dept: ${totalDept}`
@@ -290,6 +294,28 @@ canvas.addEventListener('mousemove', (e) => {
     mouseP.y = e.clientY
 })
 
+const getDeptColor = (value) => {
+    const price = 2000
+    const month12 = 12 * price
+    const month9 = 9 * price
+    const month6 = 6 * price
+    const month3 = 3 * price
+
+    if (value >= month12) {
+        return 'rgba(255, 0, 0, 0.7)'
+    } else if (value >= month9) {
+        return 'rgba(255, 77, 0, 0.7)'
+    } else if (value >= month6) {
+        return 'rgba(255, 116, 0, 0.7)'
+    } else if (value >= month3) {
+        return 'rgba(255, 154, 0, 0.7)'
+    } else if (value > 0) {
+        return 'rgba(255, 193, 0, 0.7)'
+    } else {
+        return 'rgba(0, 255, 0, 0.7)'
+    }
+}
+
 function animate() {
     let isKadMap = mapImg === mapKadImg
 
@@ -319,16 +345,9 @@ function animate() {
             } else if (depts.visible) {
                 doFill = true
                 let dept = depts.data.map[segment.code]
-                let value = dept ? dept.totalDept : undefined
-                if (value === undefined) {
-                    ctx.fillStyle = 'rgba(0, 255, 0, 0.5)'
-                } else if (value > 10000) {
-                    ctx.fillStyle = 'rgba(255, 0, 0, 0.5)'
-                } else if (value > 5000) {
-                    ctx.fillStyle = 'rgba(255, 165, 0, 0.5)'
-                } else if (value > 1000) {
-                    ctx.fillStyle = 'rgba(255, 240, 0, 0.5)'
-                }
+                const deptValue = (dept ? dept.totalDept : 0) || 0
+                const deptColor = getDeptColor(deptValue)
+                ctx.fillStyle = deptColor
             }
 
             let minX = Number.POSITIVE_INFINITY
@@ -354,7 +373,11 @@ function animate() {
                 ctx.fill()
             }
 
-            if (depts.visible && mouseP && pointIsInPoly(mouseP, segment.points)) {
+            if (
+                depts.visible &&
+                mouseP &&
+                pointIsInPoly(mouseP, segment.points)
+            ) {
                 if (!hoveredSegment) {
                     hoveredSegment = segment
 
@@ -376,22 +399,44 @@ function animate() {
                 }
             }
 
-            let offset = segments.opts[segment.code] || {
-                label: { x: 0, y: 0 },
-            }
             let w = maxX - minX
             let h = maxY - minY
-            let cx = minX - 12 + w / 2 + offset.label.x
-            let cy = minY + 5 + h / 2 + offset.label.y
+            let cx = minX - 12 + w / 2
+            let cy = minY + 5 + h / 2
+
+            let s = 1
+            let r = 0
+            let opts = segments.opts[segment.code]
+            if (opts) {
+                cx += opts.label.x || 0
+                cy += opts.label.y || 0
+                r = opts.label.rotation || 0
+                s = opts.label.scale || 1
+            }
 
             const tm = ctx.measureText(segment.code)
 
             ctx.beginPath()
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)'
+
+            if (r !== 0 || s !== 1) {
+                ctx.save()
+                ctx.translate(cx, cy)
+                ctx.scale(s, s)
+
+                ctx.rotate(r)
+                cx = opts.label.x || 0
+                cy = opts.label.y || 0
+            }
+
             ctx.fillRect(cx - 2, cy - 11, tm.width + 4, 14)
 
             ctx.fillStyle = '#000'
             ctx.fillText(segment.code, cx, cy)
+
+            if (r) {
+                ctx.restore()
+            }
         })
 
         if (newSegment) {
@@ -412,6 +457,17 @@ function animate() {
             }
 
             ctx.stroke()
+        }
+
+        if (depts.visible) {
+            if (depts.data.totalDept >= 0) {
+                ctx.beginPath()
+                ctx.fillStyle = '#fff'
+                ctx.font = '20px Arial'
+                const deptsText = `Всего долгов: ${depts.data.totalDept.toLocaleString()}`
+                const w = ctx.measureText(deptsText).width
+                ctx.fillText(deptsText, ctx.canvas.width - w - 10, 30)
+            }
         }
 
         if (mouseP) {
