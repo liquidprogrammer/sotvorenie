@@ -32,16 +32,16 @@ var onResize = () => {
     if (mapImg.loaded) {
         let w = mapImg.img.width
         let h = mapImg.img.height
-        if (w > clientW) {
-            let s = clientW / w
-            w *= s
-            h *= s
-        }
-        if (h > clientH) {
-            let s = clientH / h
-            w *= s
-            h *= s
-        }
+        //if (w > clientW) {
+        //    let s = clientW / w
+        //    w *= s
+        //    h *= s
+        //}
+        //if (h > clientH) {
+        //    let s = clientH / h
+        //    w *= s
+        //    h *= s
+        //}
 
         canvas.width = w
         canvas.height = h
@@ -88,11 +88,19 @@ function switchMap() {
     }
 }
 
+var uiDiv = document.createElement('div')
+uiDiv.style.cssText =
+    'position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end;'
+document.body.appendChild(uiDiv)
+
+var searchInput = document.createElement('input')
+searchInput.placeholder = "Поиск по номеру"
+uiDiv.appendChild(searchInput)
+
 var mapSwitchBtn = document.createElement('button')
 mapSwitchBtn.innerText = 'Switch map'
 mapSwitchBtn.onclick = switchMap
-mapSwitchBtn.style.cssText = 'position: absolute; top: 10px; right: 10px;'
-document.body.appendChild(mapSwitchBtn)
+uiDiv.appendChild(mapSwitchBtn)
 
 switchMap()
 
@@ -110,15 +118,15 @@ function toggleDept(toState) {
 }
 
 var deptBtn = document.createElement('button')
+deptBtn.style.display = 'none'
 deptBtn.onclick = () => toggleDept()
-deptBtn.style.cssText = 'position: absolute; top: 40px; right: 10px;'
-document.body.appendChild(deptBtn)
+uiDiv.appendChild(deptBtn)
 toggleDept(false)
 
 var fileDiv = document.createElement('div')
 fileDiv.style.cssText =
-    'position: absolute; top: 70px; right: 10px; display: flex; flex-direction: row; gap: 4px; align-items: center;'
-document.body.appendChild(fileDiv)
+    'display: flex; flex-direction: row; gap: 4px; align-items: center;'
+uiDiv.appendChild(fileDiv)
 var deptFileName = document.createElement('span')
 deptFileName.style.cssText = 'color: #fff;'
 fileDiv.appendChild(deptFileName)
@@ -130,8 +138,8 @@ fileDiv.appendChild(deptFile)
 
 var deptInfo = document.createElement('div')
 deptInfo.style.cssText =
-    'position: absolute; top: 100px; right: 10px; display: flex; flex-direction: column; gap: 4px; align-items: center; color: #fff'
-document.body.appendChild(deptInfo)
+    'display: flex; flex-direction: column; gap: 4px; align-items: center; color: #fff'
+uiDiv.appendChild(deptInfo)
 
 var segmentInfo = document.createElement('div')
 segmentInfo.style.cssText =
@@ -139,6 +147,8 @@ segmentInfo.style.cssText =
 document.body.appendChild(segmentInfo)
 
 deptFile.onchange = () => {
+	deptBtn.style.display = 'block'
+	
     const file = deptFile.files[0]
     deptFileName.innerText = file.name
 
@@ -269,7 +279,7 @@ canvas.addEventListener('click', (e) => {
             let dx = newP.x - firstP.x
             let dy = newP.y - firstP.y
             let dist = Math.sqrt(dx * dx + dy * dy)
-            if (dist < 10) {
+            if (dist < 4) {
                 let code = window.prompt('Enter segment name: ')
                 if (code) {
                     newSegment.code = code
@@ -317,6 +327,8 @@ const getDeptColor = (value) => {
 }
 
 function animate() {
+	const searchText = searchInput.value
+
     let isKadMap = mapImg === mapKadImg
 
     ctx.font = 'bold 12px Arial'
@@ -338,6 +350,7 @@ function animate() {
             ctx.lineWidth = 2
             ctx.strokeStyle = '#f2ff00'
 
+
             let doFill = false
             if (isKadMap) {
                 ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'
@@ -348,7 +361,16 @@ function animate() {
                 const deptValue = (dept ? dept.totalDept : 0) || 0
                 const deptColor = getDeptColor(deptValue)
                 ctx.fillStyle = deptColor
+            } else if (searchText) {
+                ctx.fillStyle = 'rgba(255, 255, 0, 0.7)'
+                doFill = true
             }
+
+			if (searchText) {
+				if (segment.code.indexOf(searchText) === -1) {
+					ctx.globalAlpha = 0.1
+				}
+			}
 
             let minX = Number.POSITIVE_INFINITY
             let minY = Number.POSITIVE_INFINITY
@@ -372,6 +394,8 @@ function animate() {
             if (doFill) {
                 ctx.fill()
             }
+
+			ctx.globalAlpha = 1
 
             if (
                 depts.visible &&
