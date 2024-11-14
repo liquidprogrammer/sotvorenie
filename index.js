@@ -88,13 +88,29 @@ function switchMap() {
     }
 }
 
+function getDeptColor(value) {
+    const month1 = 2000
+    const month12 = 12 * month1
+    const month5 = 5 * month1
+
+    if (value >= month12) {
+        return 'rgba(255, 0, 0, 0.8)'
+    } else if (value >= month5) {
+        return 'rgba(255, 116, 0, 0.8)'
+    } else if (value > month1) {
+        return 'rgba(255, 255, 0, 0.8)'
+    } else {
+        return 'rgba(0, 255, 0, 0.8)'
+    }
+}
+
 var uiDiv = document.createElement('div')
 uiDiv.style.cssText =
     'position: absolute; top: 10px; right: 10px; display: flex; flex-direction: column; gap: 10px; align-items: flex-end;'
 document.body.appendChild(uiDiv)
 
 var searchInput = document.createElement('input')
-searchInput.placeholder = "Поиск по номеру"
+searchInput.placeholder = 'Поиск по номеру'
 uiDiv.appendChild(searchInput)
 
 var mapSwitchBtn = document.createElement('button')
@@ -112,10 +128,16 @@ function toggleDept(toState) {
 
     if (depts.visible) {
         deptBtn.innerText = 'Скрыть долги'
+        deptsLegendDiv.style.display = 'flex'
     } else {
         deptBtn.innerText = 'Показать долги'
+        deptsLegendDiv.style.display = 'none'
     }
 }
+
+var deptsLegendDiv = document.createElement('div')
+deptsLegendDiv.style.cssText =
+    'display: none; flex-direction: column; gap: 2px; color: #fff;'
 
 var deptBtn = document.createElement('button')
 deptBtn.style.display = 'none'
@@ -141,14 +163,37 @@ deptInfo.style.cssText =
     'display: flex; flex-direction: column; gap: 4px; align-items: center; color: #fff'
 uiDiv.appendChild(deptInfo)
 
+function createDeptColorHint(val, hint) {
+    var hintDiv = document.createElement('div')
+    hintDiv.style.cssText = 'display: flex; flex-direction: row; gap: 4px;'
+
+    var hintColorDiv = document.createElement('div')
+    hintColorDiv.style.cssText = `width: 20px; height: 20px; background: ${getDeptColor(
+        val
+    )}`
+    hintDiv.appendChild(hintColorDiv)
+
+    var hintSpan = document.createElement('span')
+    hintSpan.innerText = `- ${hint}`
+    hintDiv.appendChild(hintSpan)
+
+    deptsLegendDiv.appendChild(hintDiv)
+}
+createDeptColorHint(2000, '(..., 2000]')
+createDeptColorHint(2001, '(2000, 10000)')
+createDeptColorHint(10000, '[10000, 24000)')
+createDeptColorHint(24000, '[24000, ...)')
+
+uiDiv.appendChild(deptsLegendDiv)
+
 var segmentInfo = document.createElement('div')
 segmentInfo.style.cssText =
     'position: absolute; top: -999px; left: -999px; display: flex; flex-direction: column; gap: 4px; color: #fff; background: black; border: 2px solid gray; border-radius: 4px; pointer-events: none; padding: 8px;'
 document.body.appendChild(segmentInfo)
 
 deptFile.onchange = () => {
-	deptBtn.style.display = 'block'
-	
+    deptBtn.style.display = 'block'
+
     const file = deptFile.files[0]
     deptFileName.innerText = file.name
 
@@ -304,30 +349,8 @@ canvas.addEventListener('mousemove', (e) => {
     mouseP.y = e.clientY
 })
 
-const getDeptColor = (value) => {
-    const price = 2000
-    const month12 = 12 * price
-    const month9 = 9 * price
-    const month6 = 6 * price
-    const month3 = 3 * price
-
-    if (value >= month12) {
-        return 'rgba(255, 0, 0, 0.7)'
-    } else if (value >= month9) {
-        return 'rgba(255, 77, 0, 0.7)'
-    } else if (value >= month6) {
-        return 'rgba(255, 116, 0, 0.7)'
-    } else if (value >= month3) {
-        return 'rgba(255, 154, 0, 0.7)'
-    } else if (value > 0) {
-        return 'rgba(255, 193, 0, 0.7)'
-    } else {
-        return 'rgba(0, 255, 0, 0.7)'
-    }
-}
-
 function animate() {
-	const searchText = searchInput.value
+    const searchText = searchInput.value
 
     let isKadMap = mapImg === mapKadImg
 
@@ -350,7 +373,6 @@ function animate() {
             ctx.lineWidth = 2
             ctx.strokeStyle = '#f2ff00'
 
-
             let doFill = false
             if (isKadMap) {
                 ctx.fillStyle = 'rgba(255, 255, 0, 0.3)'
@@ -366,11 +388,11 @@ function animate() {
                 doFill = true
             }
 
-			if (searchText) {
-				if (segment.code.indexOf(searchText) === -1) {
-					ctx.globalAlpha = 0.1
-				}
-			}
+            if (searchText) {
+                if (segment.code.indexOf(searchText) === -1) {
+                    ctx.globalAlpha = 0.1
+                }
+            }
 
             let minX = Number.POSITIVE_INFINITY
             let minY = Number.POSITIVE_INFINITY
@@ -395,7 +417,7 @@ function animate() {
                 ctx.fill()
             }
 
-			ctx.globalAlpha = 1
+            ctx.globalAlpha = 1
 
             if (
                 depts.visible &&
