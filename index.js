@@ -129,21 +129,18 @@ function toggleDept(toState) {
     if (depts.visible) {
         deptBtn.innerText = 'Скрыть долги'
         deptsLegendDiv.style.display = 'flex'
+        deptInfo.style.display = 'flex'
     } else {
         deptBtn.innerText = 'Показать долги'
         deptsLegendDiv.style.display = 'none'
+        deptInfo.style.display = 'none'
     }
 }
-
-var deptsLegendDiv = document.createElement('div')
-deptsLegendDiv.style.cssText =
-    'display: none; flex-direction: column; gap: 2px; color: #fff;'
 
 var deptBtn = document.createElement('button')
 deptBtn.style.display = 'none'
 deptBtn.onclick = () => toggleDept()
 uiDiv.appendChild(deptBtn)
-toggleDept(false)
 
 var fileDiv = document.createElement('div')
 fileDiv.style.cssText =
@@ -163,6 +160,9 @@ deptInfo.style.cssText =
     'display: flex; flex-direction: column; gap: 4px; align-items: center; color: #fff'
 uiDiv.appendChild(deptInfo)
 
+var deptsLegendDiv = document.createElement('div')
+deptsLegendDiv.style.cssText =
+    'position: absolute; display: none; flex-direction: column; gap: 2px; color: #fff;'
 function createDeptColorHint(val, hint) {
     var hintDiv = document.createElement('div')
     hintDiv.style.cssText = 'display: flex; flex-direction: row; gap: 4px;'
@@ -183,8 +183,9 @@ createDeptColorHint(2000, '(..., 2000]')
 createDeptColorHint(2001, '(2000, 10000)')
 createDeptColorHint(10000, '[10000, 24000)')
 createDeptColorHint(24000, '[24000, ...)')
+document.body.appendChild(deptsLegendDiv)
 
-uiDiv.appendChild(deptsLegendDiv)
+toggleDept(false)
 
 var segmentInfo = document.createElement('div')
 segmentInfo.style.cssText =
@@ -289,7 +290,7 @@ deptFile.onchange = () => {
         depts.data.totalDept = totalDept
         toggleDept(true)
 
-        deptInfo.innerText = `Total dept: ${totalDept}`
+        deptInfo.innerText = `Всего долгов: ${totalDept.toLocaleString('ru-RU')}`
     })
 }
 
@@ -350,6 +351,9 @@ canvas.addEventListener('mousemove', (e) => {
 })
 
 function animate() {
+	deptsLegendDiv.style.left = `${canvas.width + 10}px`
+	deptsLegendDiv.style.top = '0px'
+
     const searchText = searchInput.value
 
     let isKadMap = mapImg === mapKadImg
@@ -503,17 +507,6 @@ function animate() {
             }
 
             ctx.stroke()
-        }
-
-        if (depts.visible) {
-            if (depts.data.totalDept >= 0) {
-                ctx.beginPath()
-                ctx.fillStyle = '#fff'
-                ctx.font = '20px Arial'
-                const deptsText = `Всего долгов: ${depts.data.totalDept.toLocaleString()}`
-                const w = ctx.measureText(deptsText).width
-                ctx.fillText(deptsText, ctx.canvas.width - w - 10, 30)
-            }
         }
 
         if (mouseP) {
